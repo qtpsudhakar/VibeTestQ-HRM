@@ -140,6 +140,7 @@ import {
   validSelection,
 } from '@/core/util/validation/rules';
 import usei18n from '@/core/util/composable/usei18n';
+import {ok, fail, requestConfirmation} from '@/webmcp/pageTools';
 
 const defaultSortOrder = {
   'employee.employeeId': 'DEFAULT',
@@ -424,6 +425,62 @@ export default {
         },
       };
     },
+  },
+
+  webMcpTools() {
+    return [
+      {
+        name: 'search_employees',
+        description:
+          'Filter the employee list on this screen by name or employee id and return the visible rows (empNumber, name, job title, sub-unit).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            name: {type: 'string', description: 'Full or partial name'},
+            employeeId: {type: 'string'},
+          },
+        },
+        annotations: {readOnlyHint: true},
+        execute: async (args) => {
+          this.filters.employee =
+            typeof args.name === 'string' ? args.name : null;
+          this.filters.employeeId =
+            typeof args.employeeId === 'string' ? args.employeeId : '';
+          await this.filterItems();
+          return ok(`${this.items?.data?.length ?? 0} employee(s) shown`, {
+            employees: this.items?.data ?? [],
+          });
+        },
+      },
+      {
+        name: 'delete_employee',
+        description:
+          'Permanently delete an employee by empNumber. The list on this screen refreshes.',
+        inputSchema: {
+          type: 'object',
+          properties: {empNumber: {type: 'number', minimum: 1}},
+          required: ['empNumber'],
+        },
+        annotations: {destructiveHint: true},
+        execute: async (args, agent) => {
+          if (!this.$can.delete('employee_list')) {
+            return fail(
+              'You do not have permission to delete employees',
+              'WEBMCP_FORBIDDEN',
+            );
+          }
+          const guard = await requestConfirmation(
+            agent,
+            `Permanently delete employee ${args.empNumber}?`,
+          );
+          if (!guard.success) {
+            return guard;
+          }
+          this.deleteItems([args.empNumber]);
+          return ok(`Employee ${args.empNumber} deleted`);
+        },
+      },
+    ];
   },
 };
 </script>

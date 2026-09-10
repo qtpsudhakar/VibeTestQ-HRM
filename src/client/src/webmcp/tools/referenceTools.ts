@@ -12,8 +12,25 @@ const normalizeRecord = <T = unknown>(response: unknown): T | null => {
   return payload?.data ?? null;
 };
 
-export const getAdminReadTools = (): ModelContextToolDefinition[] => {
-  return [
+/**
+ * Reference-data reads, available on every screen. An agent uses these to learn
+ * the valid values (job titles, subunits, statuses, …) before filling a form.
+ * All are read-only, so they run without a confirmation prompt.
+ */
+export const getReferenceTools = (): ModelContextToolDefinition[] => {
+  const tools: ModelContextToolDefinition[] = [
+    {
+      name: 'list_job_titles',
+      description: 'List all configured job titles.',
+      execute: async () => {
+        const response = await apiGet('/api/v2/admin/job-titles');
+        const jobTitles = normalizeCollection(response);
+        return ok('Job titles fetched', {
+          count: jobTitles.length,
+          jobTitles,
+        });
+      },
+    },
     {
       name: 'list_job_categories',
       description: 'List all configured job categories.',
@@ -169,4 +186,9 @@ export const getAdminReadTools = (): ModelContextToolDefinition[] => {
       },
     },
   ];
+
+  return tools.map((tool) => ({
+    ...tool,
+    annotations: {readOnlyHint: true},
+  }));
 };

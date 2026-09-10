@@ -1,56 +1,68 @@
 # In-browser WebMCP tools
 
 These modules expose OrangeHRM actions as [WebMCP](https://github.com/webmachinelearning/webmcp)
-tools that run inside the logged-in OrangeHRM tab, so an AI agent can call them
-instead of driving the UI.
+tools that run inside the logged-in OrangeHRM tab. An AI agent (via a WebMCP
+browser extension) calls them; the tool reuses the screen's own Vue code, so the
+visible UI reflects what the agent did — the point of WebMCP over a remote MCP
+server.
 
-## How it wires up
+## Two kinds of tool
 
-`main.ts` calls `registerWebMcpTools(context)` after login, where `context`
-carries the `:user` and `:topbar-menu-items` values the backend renders onto the
-root layout element. Registration:
+**Page tools** — the real work. A page component declares a `webMcpTools()`
+option returning tool definitions whose `execute` closes over `this`. The handler
+sets the component's reactive model and calls the same method a button calls
+(`onSave`, `deleteItems`, `filterItems`), so the form fills in, the list
+refreshes, the browser navigates — exactly the manual flow. The `webMcpMixin`
+(installed in `main.ts`) registers them on `mounted` and removes them on
+`beforeUnmount`, so the available tools follow the screen you are on.
 
-1. no-ops unless the feature flag is on and a user is logged in;
-2. installs a local `navigator.modelContext` if the browser/extension has not
-   provided one (`core/modelContextPolyfill.ts`);
-3. resolves which modules the user can reach from their menu
-   (`core/permissionPolicy.ts`) and registers only the matching tools;
-4. wraps each tool with schema validation, a confirmation gate for writes, an
-   audit-log entry and a `webmcp:tool-result` event.
+Current page tools:
 
-The OrangeHRM API enforces the real permissions — a disallowed call returns a
-`WEBMCP_FORBIDDEN` result. The menu filter is only a usability layer.
+| Screen | Tools |
+|---|---|
+| Employee list | `search_employees`, `delete_employee` |
+| Add Employee | `create_employee` |
+| Personal Details | `update_personal_details` |
+| Contact Details | `update_contact_details` |
+| System Users list | `search_users`, `delete_user` |
+| Add User | `create_user` |
+| Edit User | `update_user`, `change_user_password` |
+
+**Global tools** — registered once from `registerWebMcp.ts`, filtered by the
+user's menu:
+
+- Navigator: `find_employee`, `find_user`, `open_employee_list`,
+  `open_add_employee`, `open_employee`, `open_employee_contact_details`,
+  `open_system_users`, `open_add_user`, `open_user`. These only look records up or
+  move the tab; the destination screen's own tools do the work.
+- Reference reads: `list_job_titles`, `list_subunits`, `list_locations`, … so an
+  agent can learn valid values before filling a form.
+
+## Flow
+
+An agent on the dashboard: `open_add_employee` → the Add Employee page loads and a
+`toolchange` fires → `create_employee({firstName:'Ada', lastName:'Lovelace'})` →
+the form fields populate, it saves, the tab lands on Ada's Personal Details page →
+`update_personal_details` is now available.
+
+## Behaviour
+
+- Read tools (`annotations.readOnlyHint`) run without a prompt.
+- Write tools call `requestConfirmation` first — the agent's own
+  `requestUserInteraction`, or `window.confirm` as a fallback.
+- No toast: a write navigates, and the result screen is the confirmation.
+- The API enforces real permissions; a disallowed call returns `WEBMCP_FORBIDDEN`.
 
 ## Enabling
 
-Built with `VUE_APP_WEBMCP=true` (set in the Dockerfile). Per browser:
-
-```js
-localStorage.setItem('WEBMCP_ENABLED', 'true'); // force on
-localStorage.setItem('WEBMCP_ENABLED', 'false'); // force off
-localStorage.setItem('WEBMCP_NAVIGATE', 'true'); // navigate to the affected screen after a write
-```
+Built with `VUE_APP_WEBMCP=true` (Dockerfile). Per browser:
+`localStorage.setItem('WEBMCP_ENABLED', 'true' | 'false')`.
 
 ## Debug API
 
-`window.webmcp` is attached for manual testing:
-
-| call                             | purpose                                                     |
-| -------------------------------- | ----------------------------------------------------------- |
-| `webmcp.tools()`                 | registered tool names for this user                         |
-| `webmcp.modules()`               | modules the user can reach                                  |
-| `webmcp.executeTool(name, args)` | run a tool, returns `{success, message, data?, errorCode?}` |
-| `webmcp.auditLogs()`             | recent invocations (localStorage, capped at 500)            |
-| `webmcp.clearAuditLogs()`        | wipe the audit log                                          |
-
-An external agent uses the same tools through a WebMCP browser extension that
-provides `navigator.modelContext`.
-
-## Tools
-
-34 tools across Admin, PIM, Leave, Time and Recruitment. Read tools list/search;
-write tools (create / apply / approve / shortlist / submit) always require
-confirmation. See `tools/*.ts` for names and schemas.
+`window.webmcp`: `tools()`, `modules()`, `executeTool(name, args)`,
+`auditLogs()`, `clearAuditLogs()`. If the browser has no WebMCP provider a local
+`navigator.modelContext` is installed so these still work.
 
 ## Tests
 
@@ -58,6 +70,6 @@ confirmation. See `tools/*.ts` for names and schemas.
 cd src/client && yarn jest src/webmcp
 ```
 
-`__tests__/webmcp.test.ts` exercises the real registry, validation, permission
-gate, confirmation flow and audit log with only the HTTP client mocked. Tests are
-excluded from the production image build.
+Covers the registry (add/remove via AbortSignal, validation, error mapping), the
+navigator/reference tools, and the `webMcpMixin` lifecycle plus a page-tool
+handler against a fake component. Excluded from the production image build.

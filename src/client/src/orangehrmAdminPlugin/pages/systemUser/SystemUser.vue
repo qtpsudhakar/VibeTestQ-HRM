@@ -125,6 +125,7 @@ import {
 } from '@/core/util/validation/rules';
 import useEmployeeNameTranslate from '@/core/util/composable/useEmployeeNameTranslate';
 import usei18n from '@/core/util/composable/usei18n';
+import {ok, requestConfirmation} from '@/webmcp/pageTools';
 
 const defaultFilters = {
   username: '',
@@ -347,6 +348,63 @@ export default {
       this.filters = {...defaultFilters};
       this.filterItems();
     },
+  },
+
+  webMcpTools() {
+    return [
+      {
+        name: 'search_users',
+        description:
+          'Filter the system users list on this screen and return the visible rows (id, username, role, status).',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            username: {type: 'string'},
+            role: {type: 'string', enum: ['Admin', 'ESS']},
+            status: {type: 'string', enum: ['Enabled', 'Disabled']},
+          },
+        },
+        annotations: {readOnlyHint: true},
+        execute: async (args) => {
+          this.filters = {...defaultFilters};
+          if (typeof args.username === 'string') {
+            this.filters.username = args.username;
+          }
+          if (args.role) {
+            this.filters.userRoleId = {id: args.role === 'Admin' ? 1 : 2};
+          }
+          if (args.status) {
+            this.filters.status = {id: args.status === 'Enabled' ? 1 : 0};
+          }
+          await this.filterItems();
+          return ok(`${this.items?.data?.length ?? 0} user(s) shown`, {
+            users: this.items?.data ?? [],
+          });
+        },
+      },
+      {
+        name: 'delete_user',
+        description:
+          'Permanently delete a system user by id. The list on this screen refreshes.',
+        inputSchema: {
+          type: 'object',
+          properties: {id: {type: 'number', minimum: 1}},
+          required: ['id'],
+        },
+        annotations: {destructiveHint: true},
+        execute: async (args, agent) => {
+          const guard = await requestConfirmation(
+            agent,
+            `Permanently delete system user ${args.id}?`,
+          );
+          if (!guard.success) {
+            return guard;
+          }
+          this.deleteItems([args.id]);
+          return ok(`User ${args.id} deleted`);
+        },
+      },
+    ];
   },
 };
 </script>

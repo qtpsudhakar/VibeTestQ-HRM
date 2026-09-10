@@ -103,6 +103,8 @@ import {
   shouldNotLessThanCharLength,
 } from '@/core/util/validation/rules';
 import {promiseDebounce} from '@ohrm/oxd';
+import {ok, fail, requestConfirmation} from '@/webmcp/pageTools';
+import {apiGet} from '@/webmcp/core/apiClient';
 
 const userModel = {
   username: '',
@@ -207,6 +209,65 @@ export default {
         }
       });
     },
+  },
+
+  webMcpTools() {
+    return [
+      {
+        name: 'create_user',
+        description:
+          'Fill and submit the Add User form on this screen. Links the account to an existing employee (resolved by name). On success the browser returns to the users list.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            username: {type: 'string'},
+            employeeName: {
+              type: 'string',
+              description: 'Name of the existing employee to link',
+            },
+            role: {type: 'string', enum: ['Admin', 'ESS']},
+            status: {type: 'string', enum: ['Enabled', 'Disabled']},
+            password: {type: 'string'},
+          },
+          required: ['username', 'employeeName', 'role', 'password'],
+        },
+        execute: async (args, agent) => {
+          const guard = await requestConfirmation(
+            agent,
+            `Create ${args.role} user "${args.username}" for ${args.employeeName}?`,
+          );
+          if (!guard.success) {
+            return guard;
+          }
+
+          const search = await apiGet('/api/v2/pim/employees', {
+            nameOrId: args.employeeName,
+            limit: 2,
+          });
+          const matches = search?.data ?? [];
+          if (matches.length === 0) {
+            return fail(
+              `No employee found matching "${args.employeeName}"`,
+              'WEBMCP_NOT_FOUND',
+            );
+          }
+          const emp = matches[0];
+
+          this.user.username = String(args.username);
+          this.user.employee = {
+            id: emp.empNumber,
+            label: `${emp.firstName ?? ''} ${emp.lastName ?? ''}`.trim(),
+          };
+          this.user.role = {id: args.role === 'Admin' ? 1 : 2};
+          this.user.status = {id: args.status === 'Disabled' ? 2 : 1};
+          this.user.password = String(args.password);
+          this.user.passwordConfirm = String(args.password);
+
+          await this.onSave();
+          return ok(`User "${args.username}" created`);
+        },
+      },
+    ];
   },
 };
 </script>

@@ -140,6 +140,7 @@ import {
 } from '@ohrm/core/util/validation/rules';
 import {OxdSwitchInput} from '@ohrm/oxd';
 import useServerValidation from '@/core/util/composable/useServerValidation';
+import {ok, requestConfirmation} from '@/webmcp/pageTools';
 
 const defaultPic = `${window.appGlobal.publicPath}/images/default-photo.png`;
 
@@ -309,6 +310,45 @@ export default {
           }
         });
     },
+  },
+
+  webMcpTools() {
+    return [
+      {
+        name: 'create_employee',
+        description:
+          "Fill and submit the Add Employee form on this screen. On success the browser opens the new employee's Personal Details page.",
+        inputSchema: {
+          type: 'object',
+          properties: {
+            firstName: {type: 'string'},
+            middleName: {type: 'string'},
+            lastName: {type: 'string'},
+            employeeId: {type: 'string'},
+          },
+          required: ['firstName', 'lastName'],
+        },
+        execute: async (args, agent) => {
+          const guard = await requestConfirmation(
+            agent,
+            `Create employee "${args.firstName} ${args.lastName}"?`,
+          );
+          if (!guard.success) {
+            return guard;
+          }
+          this.employee.firstName = args.firstName;
+          this.employee.lastName = args.lastName;
+          if (args.middleName != null) {
+            this.employee.middleName = args.middleName;
+          }
+          if (args.employeeId != null) {
+            this.employee.employeeId = args.employeeId;
+          }
+          await this.onSave();
+          return ok('Employee created', {empNumber: this.empNumber});
+        },
+      },
+    ];
   },
 };
 </script>

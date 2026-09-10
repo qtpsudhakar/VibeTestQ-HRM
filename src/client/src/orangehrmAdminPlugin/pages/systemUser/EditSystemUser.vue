@@ -116,6 +116,7 @@ import {
   shouldNotLessThanCharLength,
 } from '@ohrm/core/util/validation/rules';
 import {promiseDebounce} from '@ohrm/oxd';
+import {ok, requestConfirmation} from '@/webmcp/pageTools';
 
 const userModel = {
   id: '',
@@ -252,6 +253,68 @@ export default {
         }
       });
     },
+  },
+
+  webMcpTools() {
+    return [
+      {
+        name: 'update_user',
+        description:
+          'Update the system user open on this screen: username, role and/or enabled status. Only the fields you pass change. On success the browser returns to the users list.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            username: {type: 'string'},
+            role: {type: 'string', enum: ['Admin', 'ESS']},
+            status: {type: 'string', enum: ['Enabled', 'Disabled']},
+          },
+        },
+        execute: async (args, agent) => {
+          const guard = await requestConfirmation(
+            agent,
+            `Update user "${this.user.username}"?`,
+          );
+          if (!guard.success) {
+            return guard;
+          }
+          if (typeof args.username === 'string') {
+            this.user.username = args.username;
+          }
+          if (args.role) {
+            this.user.role = {id: args.role === 'Admin' ? 1 : 2};
+          }
+          if (args.status) {
+            this.user.status = {id: args.status === 'Disabled' ? 2 : 1};
+          }
+          await this.onSave();
+          return ok('User updated');
+        },
+      },
+      {
+        name: 'change_user_password',
+        description:
+          'Set a new password for the system user open on this screen. On success the browser returns to the users list.',
+        inputSchema: {
+          type: 'object',
+          properties: {password: {type: 'string'}},
+          required: ['password'],
+        },
+        execute: async (args, agent) => {
+          const guard = await requestConfirmation(
+            agent,
+            `Change the password for "${this.user.username}"?`,
+          );
+          if (!guard.success) {
+            return guard;
+          }
+          this.user.changePassword = true;
+          this.user.password = String(args.password);
+          this.user.passwordConfirm = String(args.password);
+          await this.onSave();
+          return ok(`Password changed for "${this.user.username}"`);
+        },
+      },
+    ];
   },
 };
 </script>

@@ -10,10 +10,8 @@ import {
   resolveAllowedModules,
   WebMcpModule,
 } from './core/permissionPolicy';
-import {getAdminReadTools} from './tools/adminReadTools';
-import {getAdminWriteTools} from './tools/adminWriteTools';
-import {getReadTools} from './tools/readTools';
-import {getWriteTools} from './tools/writeTools';
+import {getNavigatorTools} from './tools/navigatorTools';
+import {getReferenceTools} from './tools/referenceTools';
 import {clearToolAuditLogs, getToolAuditLogs} from './core/auditLogger';
 
 export interface WebMcpBootstrapContext {
@@ -40,7 +38,10 @@ const hasLoggedInUser = (context: WebMcpBootstrapContext): boolean =>
   Boolean(context.user && context.user.firstName);
 
 /**
- * Register the WebMCP tools the current user is allowed to use.
+ * Register the GLOBAL WebMCP tools — navigation and reference-data reads — that
+ * the current user is allowed to use. Page components register their own
+ * screen-scoped tools via the `webMcpTools()` option (see useWebMcp.ts).
+ *
  * No-op (returns 0) when the feature flag is off or no user is logged in.
  */
 export const registerWebMcpTools = (
@@ -57,12 +58,9 @@ export const registerWebMcpTools = (
     context.sideMenu,
   );
 
-  const tools = [
-    ...getReadTools(),
-    ...getWriteTools(),
-    ...getAdminReadTools(),
-    ...getAdminWriteTools(),
-  ].filter((tool) => isToolAllowed(tool.name, allowedModules));
+  const tools = [...getNavigatorTools(), ...getReferenceTools()].filter(
+    (tool) => isToolAllowed(tool.name, allowedModules),
+  );
 
   const registeredCount = registerTools(tools);
   attachWebMcpDebugApi(allowedModules);

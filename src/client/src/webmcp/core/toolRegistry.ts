@@ -9,72 +9,6 @@ import {validateInputs} from './toolSchemas';
 import {appendToolAuditLog} from './auditLogger';
 import {WebMcpApiError} from './apiClient';
 
-type ToolUiEventDetail = {
-  toolName: string;
-  success: boolean;
-  message: string;
-  errorCode?: string;
-  navigatedTo?: string;
-};
-
-/**
- * Optional: after a successful tool call, move the OrangeHRM tab to the screen
- * that reflects the change. Off by default because a full-page navigation resets
- * the app; enable per browser with `localStorage.WEBMCP_NAVIGATE = 'true'`.
- */
-const TOOL_NAVIGATION_ROUTES: Record<string, string> = {
-  create_employee: '/pim/viewEmployeeList',
-  apply_leave: '/leave/viewMyLeaveList',
-  approve_leave_request: '/leave/viewLeaveList',
-  submit_timesheet: '/time/viewEmployeeTimesheet',
-  shortlist_candidate: '/recruitment/viewCandidates',
-  create_job_title: '/admin/viewJobTitleList',
-  create_job_category: '/admin/jobCategory',
-  create_employment_status: '/admin/employmentStatus',
-  create_location: '/admin/viewLocations',
-  create_pay_grade: '/admin/viewPayGrades',
-  create_system_user: '/admin/viewSystemUsers',
-};
-
-const isNavigationEnabled = (): boolean => {
-  try {
-    return localStorage.getItem('WEBMCP_NAVIGATE') === 'true';
-  } catch {
-    return false;
-  }
-};
-
-const getBaseUrl = (): string => {
-  if (typeof window === 'undefined') {
-    return '';
-  }
-  const globalWindow = window as Window & {appGlobal?: {baseUrl?: string}};
-  return globalWindow.appGlobal?.baseUrl || '';
-};
-
-const navigateForTool = (toolName: string): string | undefined => {
-  if (typeof window === 'undefined' || !isNavigationEnabled()) {
-    return undefined;
-  }
-  const route = TOOL_NAVIGATION_ROUTES[toolName];
-  if (!route) {
-    return undefined;
-  }
-  const target = `${getBaseUrl()}${route}`;
-  if (window.location.href.startsWith(target)) {
-    return undefined;
-  }
-  window.location.assign(target);
-  return target;
-};
-
-const emitToolUiEvent = (detail: ToolUiEventDetail): void => {
-  if (typeof window === 'undefined') {
-    return;
-  }
-  window.dispatchEvent(new CustomEvent('webmcp:tool-result', {detail}));
-};
-
 type ToolExecutor = (
   args: Record<string, unknown>,
   agent?: ModelContextAgent,
@@ -94,16 +28,6 @@ const wrapExecutor = (tool: ModelContextToolDefinition): ToolExecutor => {
     const startedAt = new Date();
 
     const finish = (result: ToolResult): ToolResult => {
-      const navigatedTo = result.success
-        ? navigateForTool(tool.name)
-        : undefined;
-      emitToolUiEvent({
-        toolName: tool.name,
-        success: result.success,
-        message: result.message,
-        errorCode: result.errorCode,
-        navigatedTo,
-      });
       const finishedAt = new Date();
       appendToolAuditLog({
         toolName: tool.name,
@@ -141,14 +65,26 @@ const wrapExecutor = (tool: ModelContextToolDefinition): ToolExecutor => {
  * `window.webmcp.executeTool` works for manual testing); when a
  * `navigator.modelContext` provider is present, tools are also registered with
  * it for external agents.
+ *
+ * Pass `{ signal }` for page-scoped tools: aborting it removes them from both
+ * the executor map and the provider.
  */
-export const registerTools = (tools: ModelContextToolDefinition[]): number => {
+export const registerTools = (
+  tools: ModelContextToolDefinition[],
+  options: {signal?: AbortSignal} = {},
+): number => {
   const modelContext = getModelContext();
 
   tools.forEach((tool) => {
     const wrappedExecute = wrapExecutor(tool);
     toolExecutors.set(tool.name, wrappedExecute);
-    modelContext?.registerTool({...tool, execute: wrappedExecute});
+    options.signal?.addEventListener('abort', () => {
+      toolExecutors.delete(tool.name);
+    });
+    modelContext?.registerTool(
+      {...tool, execute: wrappedExecute},
+      {signal: options.signal},
+    );
   });
 
   return tools.length;

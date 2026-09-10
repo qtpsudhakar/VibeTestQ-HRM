@@ -149,6 +149,7 @@ import {
   validEmailFormat,
 } from '@ohrm/core/util/validation/rules';
 import {promiseDebounce} from '@ohrm/oxd';
+import {ok, requestConfirmation, applyFields} from '@/webmcp/pageTools';
 
 const contactDetailsModel = {
   street1: '',
@@ -340,6 +341,26 @@ export default {
       );
     },
 
+    webMcpApply(args) {
+      applyFields(this.contact, args, [
+        'street1',
+        'street2',
+        'city',
+        'province',
+        'zipCode',
+        'homeTelephone',
+        'workTelephone',
+        'mobile',
+        'workEmail',
+        'otherEmail',
+      ]);
+      if (args.countryCode != null) {
+        this.contact.countryCode =
+          this.countries.find((item) => item.id === args.countryCode) ??
+          this.contact.countryCode;
+      }
+    },
+
     isValidEmailRecipient(email) {
       if (email === null || email === undefined || email === '') {
         return true;
@@ -358,6 +379,47 @@ export default {
         return this.isValidEmailRecipient(value) || message;
       };
     },
+  },
+
+  webMcpTools() {
+    return [
+      {
+        name: 'update_contact_details',
+        description:
+          'Update the contact details of the employee currently open on this screen (address, phone numbers, work/other email). Only the fields you pass change. The form updates in place and saves.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            street1: {type: 'string'},
+            street2: {type: 'string'},
+            city: {type: 'string'},
+            province: {type: 'string'},
+            zipCode: {type: 'string'},
+            countryCode: {
+              type: 'string',
+              description: 'ISO country code, e.g. US',
+            },
+            homeTelephone: {type: 'string'},
+            workTelephone: {type: 'string'},
+            mobile: {type: 'string'},
+            workEmail: {type: 'string'},
+            otherEmail: {type: 'string'},
+          },
+        },
+        execute: async (args, agent) => {
+          const guard = await requestConfirmation(
+            agent,
+            'Update contact details for this employee?',
+          );
+          if (!guard.success) {
+            return guard;
+          }
+          this.webMcpApply(args);
+          await this.onSave();
+          return ok('Contact details updated');
+        },
+      },
+    ];
   },
 };
 </script>

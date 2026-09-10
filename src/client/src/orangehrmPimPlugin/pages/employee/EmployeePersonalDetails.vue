@@ -201,6 +201,7 @@ import {
   validDateFormat,
 } from '@ohrm/core/util/validation/rules';
 import useDateFormat from '@/core/util/composable/useDateFormat';
+import {ok, requestConfirmation, applyFields} from '@/webmcp/pageTools';
 
 const employeeModel = {
   firstName: '',
@@ -373,6 +374,72 @@ export default {
         (item) => item.id === data.nationality?.id,
       );
     },
+  },
+
+  webMcpTools() {
+    return [
+      {
+        name: 'update_personal_details',
+        description:
+          'Update the personal details of the employee currently open on this screen. Only the fields you pass are changed. The form updates in place and saves.',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            firstName: {type: 'string'},
+            middleName: {type: 'string'},
+            lastName: {type: 'string'},
+            nickname: {type: 'string'},
+            otherId: {type: 'string'},
+            drivingLicenseNo: {type: 'string'},
+            gender: {type: 'string', enum: ['male', 'female']},
+            maritalStatus: {
+              type: 'string',
+              enum: ['Single', 'Married', 'Other'],
+            },
+            birthday: {
+              type: 'string',
+              description: 'Date of birth in the account date format',
+            },
+          },
+        },
+        execute: async (args, agent) => {
+          const name =
+            `${this.employee.firstName} ${this.employee.lastName}`.trim();
+          const guard = await requestConfirmation(
+            agent,
+            `Update personal details for ${name || 'this employee'}?`,
+          );
+          if (!guard.success) {
+            return guard;
+          }
+
+          applyFields(this.employee, args, [
+            'firstName',
+            'middleName',
+            'lastName',
+            'nickname',
+            'otherId',
+            'drivingLicenseNo',
+            'birthday',
+          ]);
+          if (args.gender != null) {
+            this.employee.gender = args.gender === 'female' ? '2' : '1';
+          }
+          if (args.maritalStatus != null) {
+            this.employee.maritalStatus = this.maritalStatuses.find(
+              (item) => item.id === args.maritalStatus,
+            );
+          }
+
+          await this.onSave();
+          return ok('Personal details updated', {
+            firstName: this.employee.firstName,
+            middleName: this.employee.middleName,
+            lastName: this.employee.lastName,
+          });
+        },
+      },
+    ];
   },
 };
 </script>

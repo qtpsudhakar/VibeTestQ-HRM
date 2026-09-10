@@ -8,7 +8,7 @@
  * actually reach. The API 403 (surfaced as WEBMCP_FORBIDDEN) is the hard gate.
  */
 
-export type WebMcpModule = 'admin' | 'pim' | 'leave' | 'time' | 'recruitment';
+export type WebMcpModule = 'admin' | 'pim';
 
 /**
  * Top-level module landing paths (`module/screen`). These appear in the top menu
@@ -19,31 +19,27 @@ export type WebMcpModule = 'admin' | 'pim' | 'leave' | 'time' | 'recruitment';
 const MODULE_MENU_PATH: Record<WebMcpModule, string> = {
   admin: '/admin/viewAdminModule',
   pim: '/pim/viewPimModule',
-  leave: '/leave/viewLeaveModule',
-  time: '/time/viewTimeModule',
-  recruitment: '/recruitment/viewRecruitmentModule',
 };
 
-/** Tool name -> module the user must be able to reach for the tool to register. */
+/**
+ * Module a user must be able to reach for a GLOBAL tool (navigator + reference
+ * reads) to register. Page-scoped tools are gated by the component's own `$can`
+ * instead, so they are not listed here.
+ */
 export const TOOL_MODULE: Record<string, WebMcpModule> = {
-  // core read
-  search_employees: 'pim',
-  get_employee_profile: 'pim',
-  list_leave_types: 'leave',
-  get_leave_balance: 'leave',
-  list_projects: 'time',
-  list_project_activities: 'time',
-  list_vacancies: 'recruitment',
-  list_candidates: 'recruitment',
-  list_system_users: 'admin',
+  // navigator — PIM
+  find_employee: 'pim',
+  open_employee_list: 'pim',
+  open_add_employee: 'pim',
+  open_employee: 'pim',
+  open_employee_contact_details: 'pim',
+  // navigator — Admin
+  find_user: 'admin',
+  open_system_users: 'admin',
+  open_add_user: 'admin',
+  open_user: 'admin',
+  // reference reads — Admin
   list_job_titles: 'admin',
-  // core write
-  create_employee: 'pim',
-  apply_leave: 'leave',
-  submit_timesheet: 'time',
-  approve_leave_request: 'leave',
-  shortlist_candidate: 'recruitment',
-  // admin read
   list_job_categories: 'admin',
   list_employment_statuses: 'admin',
   list_locations: 'admin',
@@ -57,13 +53,6 @@ export const TOOL_MODULE: Record<string, WebMcpModule> = {
   list_license_qualifications: 'admin',
   list_language_qualifications: 'admin',
   list_membership_qualifications: 'admin',
-  // admin write
-  create_job_title: 'admin',
-  create_job_category: 'admin',
-  create_employment_status: 'admin',
-  create_location: 'admin',
-  create_pay_grade: 'admin',
-  create_system_user: 'admin',
 };
 
 interface MenuItemLike {

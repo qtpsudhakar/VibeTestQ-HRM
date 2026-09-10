@@ -34,6 +34,17 @@ RUN rm -rf src/webmcp/__tests__ \
  && sed -i '/@ts-expect-error: appGlobal is not in window object by default/d' \
       src/core/util/helper/url.ts
 
+# Page components that register their own screen-scoped WebMCP tools via a
+# `webMcpTools()` option. All seven are byte-identical between upstream 5.8.1 and
+# 5.9, so this repo's edited copies apply onto the 5.9 tree.
+COPY src/client/src/orangehrmPimPlugin/pages/employee/Employee.vue                  src/orangehrmPimPlugin/pages/employee/Employee.vue
+COPY src/client/src/orangehrmPimPlugin/pages/employee/SaveEmployee.vue              src/orangehrmPimPlugin/pages/employee/SaveEmployee.vue
+COPY src/client/src/orangehrmPimPlugin/pages/employee/EmployeePersonalDetails.vue   src/orangehrmPimPlugin/pages/employee/EmployeePersonalDetails.vue
+COPY src/client/src/orangehrmPimPlugin/pages/employee/EmployeeContactDetails.vue    src/orangehrmPimPlugin/pages/employee/EmployeeContactDetails.vue
+COPY src/client/src/orangehrmAdminPlugin/pages/systemUser/SystemUser.vue            src/orangehrmAdminPlugin/pages/systemUser/SystemUser.vue
+COPY src/client/src/orangehrmAdminPlugin/pages/systemUser/SaveSystemUser.vue        src/orangehrmAdminPlugin/pages/systemUser/SaveSystemUser.vue
+COPY src/client/src/orangehrmAdminPlugin/pages/systemUser/EditSystemUser.vue        src/orangehrmAdminPlugin/pages/systemUser/EditSystemUser.vue
+
 # Enable WebMCP for this build. Can still be toggled per browser with
 # localStorage.WEBMCP_ENABLED.
 ENV VUE_APP_WEBMCP=true

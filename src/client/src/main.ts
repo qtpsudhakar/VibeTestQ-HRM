@@ -28,14 +28,7 @@ import './core/styles/global.scss';
 import './core/plugins/toaster/toaster.scss';
 import './core/plugins/loader/loader.scss';
 import {registerWebMcpTools} from './webmcp/registerWebMcp';
-
-type WebMcpToolResultDetail = {
-  toolName: string;
-  success: boolean;
-  message: string;
-  errorCode?: string;
-  navigatedTo?: string;
-};
+import {webMcpMixin} from './webmcp/useWebMcp';
 
 const app = createApp({
   name: 'App',
@@ -52,39 +45,9 @@ app.use(toaster, {
   position: 'bottom',
 });
 
-window.addEventListener('webmcp:tool-result', (event: Event) => {
-  const customEvent = event as CustomEvent<WebMcpToolResultDetail>;
-  const detail = customEvent.detail;
-  if (!detail) {
-    return;
-  }
-
-  const toast = app.config.globalProperties.$toast as ToasterAPI | undefined;
-  if (!toast) {
-    return;
-  }
-
-  const message = detail.navigatedTo
-    ? `${detail.message} (navigating...)`
-    : detail.message;
-
-  if (detail.success) {
-    void toast.success({
-      title: `WebMCP: ${detail.toolName}`,
-      message,
-    });
-    return;
-  }
-
-  const errorMessage = detail.errorCode
-    ? `${message} [${detail.errorCode}]`
-    : message;
-
-  void toast.error({
-    title: `WebMCP: ${detail.toolName}`,
-    message: errorMessage,
-  });
-});
+// Lets a page component expose screen-scoped WebMCP tools via a `webMcpTools()`
+// option; registered on mount, removed on unmount.
+app.mixin(webMcpMixin);
 
 const baseUrl = window.appGlobal.baseUrl;
 

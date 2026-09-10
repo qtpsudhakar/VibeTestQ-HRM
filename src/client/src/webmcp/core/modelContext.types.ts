@@ -11,10 +11,18 @@ export interface ModelContextInputSchema {
   required?: string[];
 }
 
+export interface ModelContextToolAnnotations {
+  /** Tool does not modify state — skip the confirmation gate. */
+  readOnlyHint?: boolean;
+  /** Tool performs a destructive update (delete) — always confirm. */
+  destructiveHint?: boolean;
+}
+
 export interface ModelContextToolDefinition {
   name: string;
   description: string;
   inputSchema?: ModelContextInputSchema;
+  annotations?: ModelContextToolAnnotations;
   execute: (
     args: Record<string, unknown>,
     agent?: ModelContextAgent,
