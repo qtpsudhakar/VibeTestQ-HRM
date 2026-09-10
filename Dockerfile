@@ -2,8 +2,10 @@
 #
 # Stage 1 compiles the OrangeHRM 5.9 frontend with this repo's login-page
 # customisation applied. Stage 2 is the stock orangehrm/orangehrm:5.9 image
-# (keeps its entrypoint, ORANGEHRM_* DB auto-config and volume handling) with
-# the freshly built frontend and this repo's branding images layered on top.
+# with the freshly built frontend and this repo's branding images layered on
+# top, plus an entrypoint that regenerates lib/confs/Conf.php from the
+# ORANGEHRM_DATABASE_* env vars so redeploys land on the login page instead of
+# the installer (see docker/railway-entrypoint.sh).
 #
 # Pinned to 5.9 = what this Railway service already runs, so this is not a
 # version change. If you bump the tag, bump OHRM_TAG to match.
@@ -31,3 +33,8 @@ FROM orangehrm/orangehrm:5.9
 COPY --from=client --chown=www-data:www-data /ohrm/web/dist/ /var/www/html/web/dist/
 COPY --chown=www-data:www-data web/images/ /var/www/html/web/images/
 COPY --chown=www-data:www-data logo.png    /var/www/html/logo.png
+
+COPY docker/railway-entrypoint.sh /usr/local/bin/railway-entrypoint.sh
+RUN chmod +x /usr/local/bin/railway-entrypoint.sh
+ENTRYPOINT ["railway-entrypoint.sh"]
+CMD ["apache2-foreground"]
