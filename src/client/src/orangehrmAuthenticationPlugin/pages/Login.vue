@@ -90,40 +90,37 @@
       </template>
     </div>
     <div class="orangehrm-login-footer">
-      <div v-if="showSocialMedia" class="orangehrm-login-footer-sm">
-        <a
-          href="https://vibetestq.com"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="VibeTestQ"
-        >
-          <oxd-icon class="orangehrm-sm-icon" name="globe" />
-        </a>
-        <a
-          href="https://www.linkedin.com/in/qtpsudhakar/"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="LinkedIn"
-        >
-          <oxd-icon type="svg" class="orangehrm-sm-icon" name="linkedinFill" />
-        </a>
-        <a
-          href="https://www.npmjs.com/package/tamash-playwright"
-          target="_blank"
-          rel="noopener noreferrer"
-          title="tamash-playwright on npm"
-        >
-          <oxd-icon class="orangehrm-sm-icon" name="box-seam" />
-        </a>
-      </div>
-      <slot name="footer"></slot>
+      <a
+        class="orangehrm-login-footer-link"
+        href="https://vibetestq.com"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Visit VibeTestQ for New Test Automation and GenAI training programs
+      </a>
+      <a
+        class="orangehrm-login-footer-link"
+        href="https://www.linkedin.com/in/qtpsudhakar/"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Follow QtpSudhakar on LinkedIn
+      </a>
+      <a
+        class="orangehrm-login-footer-link"
+        href="https://www.npmjs.com/package/tamash-playwright"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        Try TAMASH-Playwright Self Healing
+      </a>
     </div>
   </login-layout>
 </template>
 
 <script>
 import {urlFor} from '@ohrm/core/util/helper/url';
-import {OxdAlert, OxdIcon, OxdSheet} from '@ohrm/oxd';
+import {OxdAlert, OxdSheet} from '@ohrm/oxd';
 import {required} from '@ohrm/core/util/validation/rules';
 import {navigate, reloadPage} from '@ohrm/core/util/helper/navigation';
 import LoginLayout from '@/orangehrmAuthenticationPlugin/components/LoginLayout.vue';
@@ -131,7 +128,6 @@ import SocialMediaAuth from '@/orangehrmAuthenticationPlugin/components/SocialMe
 
 export default {
   components: {
-    'oxd-icon': OxdIcon,
     'oxd-alert': OxdAlert,
     'oxd-sheet': OxdSheet,
     'login-layout': LoginLayout,
