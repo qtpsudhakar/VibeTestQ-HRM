@@ -1,7 +1,8 @@
 import {isWebMcpEnabled} from './core/toolGuards';
-import {ensureModelContext} from './core/modelContextPolyfill';
+import {resolveModelContext} from './core/modelContextPolyfill';
 import {
   executeRegisteredTool,
+  getProviderInfo,
   getRegisteredToolNames,
   registerTools,
 } from './core/toolRegistry';
@@ -25,6 +26,8 @@ export interface WebMcpBootstrapContext {
 
 const attachWebMcpDebugApi = (allowedModules: Set<WebMcpModule>): void => {
   window.webmcp = {
+    enabled: () => isWebMcpEnabled(),
+    provider: () => getProviderInfo(),
     tools: () => getRegisteredToolNames(),
     modules: () => Array.from(allowedModules),
     executeTool: (toolName: string, args: Record<string, unknown> = {}) =>
@@ -42,27 +45,27 @@ const hasLoggedInUser = (context: WebMcpBootstrapContext): boolean =>
  * the current user is allowed to use. Page components register their own
  * screen-scoped tools via the `webMcpTools()` option (see useWebMcp.ts).
  *
- * No-op (returns 0) when the feature flag is off or no user is logged in.
+ * The debug API (`window.webmcp`) is always attached so the setup can be
+ * inspected even when nothing registered.
  */
 export const registerWebMcpTools = (
   context: WebMcpBootstrapContext = {},
 ): number => {
-  if (!isWebMcpEnabled() || !hasLoggedInUser(context)) {
-    return 0;
-  }
-
-  ensureModelContext();
-
   const allowedModules = resolveAllowedModules(
     context.topMenu,
     context.sideMenu,
   );
+  attachWebMcpDebugApi(allowedModules);
+
+  if (!isWebMcpEnabled() || !hasLoggedInUser(context)) {
+    return 0;
+  }
+
+  resolveModelContext();
 
   const tools = [...getNavigatorTools(), ...getReferenceTools()].filter(
     (tool) => isToolAllowed(tool.name, allowedModules),
   );
 
-  const registeredCount = registerTools(tools);
-  attachWebMcpDebugApi(allowedModules);
-  return registeredCount;
+  return registerTools(tools);
 };

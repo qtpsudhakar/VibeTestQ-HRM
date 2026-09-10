@@ -1,5 +1,4 @@
 import {
-  ModelContext,
   ModelContextAgent,
   ModelContextToolDefinition,
   ToolResult,
@@ -8,19 +7,30 @@ import {fail} from './toolResponse';
 import {validateInputs} from './toolSchemas';
 import {appendToolAuditLog} from './auditLogger';
 import {WebMcpApiError} from './apiClient';
+import {resolveModelContexts} from './modelContextPolyfill';
 
 type ToolExecutor = (
   args: Record<string, unknown>,
   agent?: ModelContextAgent,
-) => Promise<unknown>;
+) => Promise<ToolResult>;
 
 const toolExecutors = new Map<string, ToolExecutor>();
+const registeredWithProvider = new Set<string>();
 
-const getModelContext = (): ModelContext | null => {
-  const navigatorWithModelContext = navigator as Navigator & {
-    modelContext?: ModelContext;
+/**
+ * Wrap a ToolResult into the MCP content shape a WebMCP provider / agent
+ * expects. The internal `executeRegisteredTool` path keeps the raw ToolResult.
+ */
+const toMcpResult = (result: ToolResult) => {
+  const text =
+    result.data === undefined
+      ? result.message
+      : `${result.message}\n${JSON.stringify(result.data)}`;
+  return {
+    content: [{type: 'text', text}],
+    isError: !result.success,
+    structuredContent: result.data,
   };
-  return navigatorWithModelContext.modelContext || null;
 };
 
 const wrapExecutor = (tool: ModelContextToolDefinition): ToolExecutor => {
@@ -73,21 +83,76 @@ export const registerTools = (
   tools: ModelContextToolDefinition[],
   options: {signal?: AbortSignal} = {},
 ): number => {
-  const modelContext = getModelContext();
+  const providers = resolveModelContexts();
 
   tools.forEach((tool) => {
     const wrappedExecute = wrapExecutor(tool);
     toolExecutors.set(tool.name, wrappedExecute);
     options.signal?.addEventListener('abort', () => {
       toolExecutors.delete(tool.name);
+      registeredWithProvider.delete(tool.name);
     });
-    modelContext?.registerTool(
-      {...tool, execute: wrappedExecute},
-      {signal: options.signal},
-    );
+
+    const descriptor = {
+      name: tool.name,
+      description: tool.description,
+      inputSchema: tool.inputSchema,
+      annotations: tool.annotations,
+      execute: async (args: Record<string, unknown>) =>
+        toMcpResult(await wrappedExecute(args)),
+    };
+
+    providers.forEach((provider) => {
+      try {
+        const maybePromise = provider.registerTool(descriptor, {
+          signal: options.signal,
+        });
+        if (
+          maybePromise &&
+          typeof (maybePromise as Promise<unknown>).then === 'function'
+        ) {
+          (maybePromise as Promise<unknown>).catch(() => undefined);
+        }
+        registeredWithProvider.add(tool.name);
+      } catch {
+        // provider rejected the descriptor — the internal map still has it
+      }
+    });
   });
 
   return tools.length;
+};
+
+type MaybeProvider =
+  | {isWebMcpPolyfill?: boolean; getTools?: () => unknown[]}
+  | undefined;
+
+const providerAt = (host: 'document' | 'navigator'): MaybeProvider => {
+  const scope =
+    host === 'document' ? globalThis.document : globalThis.navigator;
+  return (scope as unknown as {modelContext?: MaybeProvider})?.modelContext;
+};
+
+/** Diagnostics for `window.webmcp.provider()`. */
+export const getProviderInfo = () => {
+  const describe = (p: MaybeProvider) => {
+    if (!p) {
+      return null;
+    }
+    let toolCount: number | undefined;
+    try {
+      toolCount =
+        typeof p.getTools === 'function' ? p.getTools().length : undefined;
+    } catch {
+      toolCount = undefined;
+    }
+    return {polyfill: Boolean(p.isWebMcpPolyfill), toolCount};
+  };
+  return {
+    documentModelContext: describe(providerAt('document')),
+    navigatorModelContext: describe(providerAt('navigator')),
+    registeredWithProvider: Array.from(registeredWithProvider),
+  };
 };
 
 export const executeRegisteredTool = async (
@@ -112,4 +177,5 @@ export const getRegisteredToolNames = (): string[] => {
 /** Test helper — clears registered executors. */
 export const resetToolRegistry = (): void => {
   toolExecutors.clear();
+  registeredWithProvider.clear();
 };

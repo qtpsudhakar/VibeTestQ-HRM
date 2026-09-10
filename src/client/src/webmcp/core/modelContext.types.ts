@@ -37,7 +37,8 @@ export interface ModelContext {
   registerTool: (
     tool: ModelContextToolDefinition,
     options?: {signal?: AbortSignal},
-  ) => void;
+  ) => void | Promise<unknown>;
+  getTools?: () => unknown[] | Promise<unknown[]>;
 }
 
 export interface ToolResult<T = unknown> {

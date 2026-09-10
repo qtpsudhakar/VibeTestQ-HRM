@@ -25,7 +25,7 @@
  */
 import {ComponentOptions} from 'vue';
 import {isWebMcpEnabled} from './core/toolGuards';
-import {ensureModelContext} from './core/modelContextPolyfill';
+import {resolveModelContext} from './core/modelContextPolyfill';
 import {registerTools} from './core/toolRegistry';
 import {ModelContextToolDefinition} from './core/modelContext.types';
 
@@ -55,7 +55,7 @@ export const webMcpMixin: ComponentOptions = {
       return;
     }
 
-    ensureModelContext();
+    resolveModelContext();
     const controller = new AbortController();
     vm.__webMcpController = controller;
     registerTools(tools, {signal: controller.signal});

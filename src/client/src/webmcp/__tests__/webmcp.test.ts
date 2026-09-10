@@ -17,7 +17,12 @@ jest.mock('../core/apiClient', () => {
       this.status = status;
     }
   }
-  return {WebMcpApiError, apiGet: jest.fn(), apiPost: jest.fn(), apiPut: jest.fn()};
+  return {
+    WebMcpApiError,
+    apiGet: jest.fn(),
+    apiPost: jest.fn(),
+    apiPut: jest.fn(),
+  };
 });
 
 jest.mock('@ohrm/core/util/helper/navigation', () => ({
@@ -81,7 +86,11 @@ describe('tool registry', () => {
       {
         name: 'needs_id',
         description: 'd',
-        inputSchema: {type: 'object', properties: {id: {type: 'number'}}, required: ['id']},
+        inputSchema: {
+          type: 'object',
+          properties: {id: {type: 'number'}},
+          required: ['id'],
+        },
         execute,
       },
     ]);
@@ -119,7 +128,9 @@ describe('tool registry', () => {
 // ── navigator + reference tools ─────────────────────────────────────────────
 describe('navigator tools', () => {
   const byName = (name: string) =>
-    getNavigatorTools().find((t) => t.name === name) as ModelContextToolDefinition;
+    getNavigatorTools().find(
+      (t) => t.name === name,
+    ) as ModelContextToolDefinition;
 
   it('open_add_employee navigates and is read-only', async () => {
     const tool = byName('open_add_employee');
@@ -137,7 +148,9 @@ describe('navigator tools', () => {
 
   it('find_employee queries the API and trims the rows', async () => {
     mockGet.mockResolvedValue({
-      data: [{empNumber: 3, firstName: 'Ada', lastName: 'Lovelace', secret: 'x'}],
+      data: [
+        {empNumber: 3, firstName: 'Ada', lastName: 'Lovelace', secret: 'x'},
+      ],
     });
     const result = (await byName('find_employee').execute({query: 'ada'})) as {
       data: {employees: Record<string, unknown>[]};
@@ -172,7 +185,7 @@ describe('webMcpMixin', () => {
     return vm as {__webMcpController?: AbortController};
   };
 
-  it('registers a component\'s tools on mount and removes them on unmount', () => {
+  it("registers a component's tools on mount and removes them on unmount", () => {
     const vm = mount({
       webMcpTools(this: unknown) {
         return [{name: 'page_tool', description: 'd', execute: () => ok('x')}];
@@ -212,7 +225,8 @@ describe('webMcpMixin', () => {
             name: 'update_personal_details',
             description: 'd',
             execute: async (args: Record<string, unknown>) => {
-              if (args.firstName) component.employee.firstName = String(args.firstName);
+              if (args.firstName)
+                component.employee.firstName = String(args.firstName);
               await component.onSave();
               return ok('updated');
             },

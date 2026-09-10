@@ -28,6 +28,8 @@ interface Window {
     publicPath?: string;
   };
   webmcp?: {
+    enabled: () => boolean;
+    provider: () => Record<string, unknown>;
     tools: () => string[];
     modules: () => string[];
     executeTool: (
