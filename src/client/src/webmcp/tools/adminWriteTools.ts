@@ -1,6 +1,6 @@
 import {apiPost} from '../core/apiClient';
 import {ModelContextToolDefinition} from '../core/modelContext.types';
-import {ensureRoleAllowed, requestConfirmation} from '../core/toolGuards';
+import {requestConfirmation} from '../core/toolGuards';
 import {ok} from '../core/toolResponse';
 
 type CreateJobTitleInput = {
@@ -61,11 +61,6 @@ export const getAdminWriteTools = (): ModelContextToolDefinition[] => {
         required: ['name'],
       },
       execute: async (args, agent) => {
-        const roleError = ensureRoleAllowed(['admin']);
-        if (roleError) {
-          return roleError;
-        }
-
         const input = args as unknown as CreateJobTitleInput;
         const confirmation = await requestConfirmation(
           agent,
@@ -97,11 +92,6 @@ export const getAdminWriteTools = (): ModelContextToolDefinition[] => {
         required: ['name'],
       },
       execute: async (args, agent) => {
-        const roleError = ensureRoleAllowed(['admin']);
-        if (roleError) {
-          return roleError;
-        }
-
         const input = args as unknown as CreateJobCategoryInput;
         const confirmation = await requestConfirmation(
           agent,
@@ -131,11 +121,6 @@ export const getAdminWriteTools = (): ModelContextToolDefinition[] => {
         required: ['name'],
       },
       execute: async (args, agent) => {
-        const roleError = ensureRoleAllowed(['admin']);
-        if (roleError) {
-          return roleError;
-        }
-
         const input = args as unknown as CreateEmploymentStatusInput;
         const confirmation = await requestConfirmation(
           agent,
@@ -173,11 +158,6 @@ export const getAdminWriteTools = (): ModelContextToolDefinition[] => {
         required: ['name', 'countryCode'],
       },
       execute: async (args, agent) => {
-        const roleError = ensureRoleAllowed(['admin']);
-        if (roleError) {
-          return roleError;
-        }
-
         const input = args as unknown as CreateLocationInput;
         const confirmation = await requestConfirmation(
           agent,
@@ -215,11 +195,6 @@ export const getAdminWriteTools = (): ModelContextToolDefinition[] => {
         required: ['name'],
       },
       execute: async (args, agent) => {
-        const roleError = ensureRoleAllowed(['admin']);
-        if (roleError) {
-          return roleError;
-        }
-
         const input = args as unknown as CreatePayGradeInput;
         const confirmation = await requestConfirmation(
           agent,
@@ -253,11 +228,6 @@ export const getAdminWriteTools = (): ModelContextToolDefinition[] => {
         required: ['username', 'password', 'userRoleId', 'empNumber', 'status'],
       },
       execute: async (args, agent) => {
-        const roleError = ensureRoleAllowed(['admin']);
-        if (roleError) {
-          return roleError;
-        }
-
         const input = args as unknown as CreateSystemUserInput;
         const confirmation = await requestConfirmation(
           agent,

@@ -24,21 +24,37 @@ const parseAuditLogs = (rawValue: string | null): ToolAuditEntry[] => {
   }
 };
 
+const readRaw = (): string | null => {
+  try {
+    return localStorage.getItem(AUDIT_KEY);
+  } catch {
+    return null;
+  }
+};
+
 export const appendToolAuditLog = (entry: ToolAuditEntry): void => {
-  const logs = parseAuditLogs(localStorage.getItem(AUDIT_KEY));
+  const logs = parseAuditLogs(readRaw());
   logs.push(entry);
 
   if (logs.length > MAX_AUDIT_ENTRIES) {
     logs.splice(0, logs.length - MAX_AUDIT_ENTRIES);
   }
 
-  localStorage.setItem(AUDIT_KEY, JSON.stringify(logs));
+  try {
+    localStorage.setItem(AUDIT_KEY, JSON.stringify(logs));
+  } catch {
+    // storage unavailable (private mode / quota) — audit is best-effort
+  }
 };
 
 export const getToolAuditLogs = (): ToolAuditEntry[] => {
-  return parseAuditLogs(localStorage.getItem(AUDIT_KEY));
+  return parseAuditLogs(readRaw());
 };
 
 export const clearToolAuditLogs = (): void => {
-  localStorage.removeItem(AUDIT_KEY);
+  try {
+    localStorage.removeItem(AUDIT_KEY);
+  } catch {
+    // ignore
+  }
 };

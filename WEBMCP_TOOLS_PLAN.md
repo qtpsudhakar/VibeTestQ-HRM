@@ -268,3 +268,36 @@ Remaining:
 2. Add flow runner UI/service to execute flow files automatically.
 3. Add audit logging persistence for each tool invocation.
 4. Expand write tools to remaining Tier 1 module actions.
+
+## Hardening + deploy pass
+
+Scope: in-browser surface only; harden the existing 34 tools; ship to the
+Railway 5.9 instance; permissions must match the logged-in user.
+
+Done:
+1. `navigator.modelContext` no longer required from an extension — a local
+   provider is installed when absent (`core/modelContextPolyfill.ts`), and the
+   registry always populates its executor map so `window.webmcp.executeTool`
+   works for manual testing.
+2. Fake role guard removed. Tools are filtered at registration by the user's
+   permission-filtered menu (`core/permissionPolicy.ts`, fed from
+   `:topbar-menu-items` in `main.ts`); the API 403 is the hard gate, surfaced as
+   `WEBMCP_FORBIDDEN` by `core/apiClient.ts`.
+3. Feature flag: build-time `VUE_APP_WEBMCP`, per-browser `WEBMCP_ENABLED`;
+   registration also requires a logged-in user, so tools never load on the
+   login page.
+4. Schema validation extended to types / enums / minimums
+   (`core/toolSchemas.ts`). All 34 endpoints re-checked against 5.9;
+   `shortlist_candidate` lost its bogus `vacancyId`, action enums added for
+   `submit_timesheet` / `approve_leave_request`.
+5. Post-run full-page navigation is now opt-in (`WEBMCP_NAVIGATE`).
+6. `__tests__/webmcp.test.ts` rewritten to exercise the real modules (only the
+   HTTP client mocked); ad-hoc scripts removed.
+7. Shipped: `Dockerfile` stage 1 copies `src/webmcp/`, `main.ts` and
+   `shims-vue.d.ts` onto the 5.9 build with `VUE_APP_WEBMCP=true`.
+
+Still open:
+- Confirmation fallback still uses `window.confirm`; an agent's
+  `requestUserInteraction` is preferred. Upgrade the fallback to an oxd dialog.
+- Server-provided role for per-tool (not per-module) precision.
+- Server-persisted audit log.

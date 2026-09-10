@@ -1,11 +1,11 @@
 # Deployment image (used by Railway and .github/workflows/docker_build.yml).
 #
 # Stage 1 compiles the OrangeHRM 5.9 frontend with this repo's login-page
-# customisation applied. Stage 2 is the stock orangehrm/orangehrm:5.9 image
-# with the freshly built frontend and this repo's branding images layered on
-# top, plus a lib/confs/Conf.php that reads the ORANGEHRM_DATABASE_* env vars
-# at runtime so redeploys land on the login page instead of the installer
-# (see docker/Conf.php).
+# customisation and the in-browser WebMCP tools applied. Stage 2 is the stock
+# orangehrm/orangehrm:5.9 image with the freshly built frontend and this repo's
+# branding images layered on top, plus a lib/confs/Conf.php that reads the
+# ORANGEHRM_DATABASE_* env vars at runtime so redeploys land on the login page
+# instead of the installer (see docker/Conf.php).
 #
 # Pinned to 5.9 = what this Railway service already runs, so this is not a
 # version change. If you bump the tag, bump OHRM_TAG to match.
@@ -21,6 +21,22 @@ WORKDIR /ohrm/src/client
 # so applying this repo's copies onto the 5.9 tree is safe.
 COPY src/client/src/orangehrmAuthenticationPlugin/pages/Login.vue  src/orangehrmAuthenticationPlugin/pages/Login.vue
 COPY src/client/src/orangehrmAuthenticationPlugin/pages/login.scss src/orangehrmAuthenticationPlugin/pages/login.scss
+
+# In-browser WebMCP tools. main.ts and shims-vue.d.ts are byte-identical between
+# upstream 5.8.1 and 5.9, so this repo's copies apply cleanly. This repo's
+# shims-vue.d.ts properly declares window.appGlobal, which makes upstream's
+# defensive `@ts-expect-error` in url.ts an unused directive (TS2578) — drop it.
+# Tests are not shipped in the image.
+COPY src/client/src/webmcp/        src/webmcp/
+COPY src/client/src/main.ts        src/main.ts
+COPY src/client/src/shims-vue.d.ts src/shims-vue.d.ts
+RUN rm -rf src/webmcp/__tests__ \
+ && sed -i '/@ts-expect-error: appGlobal is not in window object by default/d' \
+      src/core/util/helper/url.ts
+
+# Enable WebMCP for this build. Can still be toggled per browser with
+# localStorage.WEBMCP_ENABLED.
+ENV VUE_APP_WEBMCP=true
 
 ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN node .yarn/releases/yarn-4.1.0.cjs install --immutable \

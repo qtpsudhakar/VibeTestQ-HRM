@@ -109,7 +109,26 @@ app.config.globalProperties.global = {
   baseUrl,
 };
 
+// Read the JSON props the backend renders onto the root layout element so
+// WebMCP can gate tools by the current user's permission-filtered menu.
+const readWebMcpContext = () => {
+  const rootEl = document.querySelector('#app')?.firstElementChild ?? null;
+  const readJson = <T>(attr: string): T | undefined => {
+    try {
+      const raw = rootEl?.getAttribute(attr);
+      return raw ? (JSON.parse(raw) as T) : undefined;
+    } catch {
+      return undefined;
+    }
+  };
+  return {
+    user: readJson<{firstName?: string}>(':user') ?? null,
+    topMenu: readJson<unknown>(':topbar-menu-items'),
+    sideMenu: readJson<unknown>(':sidepanel-menu-items'),
+  };
+};
+
 init().then(() => {
-  registerWebMcpTools();
+  registerWebMcpTools(readWebMcpContext());
   app.mount('#app');
 });

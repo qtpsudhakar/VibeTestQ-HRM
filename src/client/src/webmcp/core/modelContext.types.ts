@@ -1,11 +1,20 @@
+export interface ModelContextPropertySchema {
+  type?: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  description?: string;
+  enum?: unknown[];
+  minimum?: number;
+}
+
+export interface ModelContextInputSchema {
+  type: 'object';
+  properties?: Record<string, ModelContextPropertySchema>;
+  required?: string[];
+}
+
 export interface ModelContextToolDefinition {
   name: string;
   description: string;
-  inputSchema?: {
-    type: 'object';
-    properties?: Record<string, unknown>;
-    required?: string[];
-  };
+  inputSchema?: ModelContextInputSchema;
   execute: (
     args: Record<string, unknown>,
     agent?: ModelContextAgent,

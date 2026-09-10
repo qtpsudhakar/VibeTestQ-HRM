@@ -5,8 +5,9 @@ import {
   ToolResult,
 } from './modelContext.types';
 import {fail} from './toolResponse';
-import {validateRequiredInputs} from './toolSchemas';
+import {validateInputs} from './toolSchemas';
 import {appendToolAuditLog} from './auditLogger';
+import {WebMcpApiError} from './apiClient';
 
 type ToolUiEventDetail = {
   toolName: string;
@@ -16,35 +17,17 @@ type ToolUiEventDetail = {
   navigatedTo?: string;
 };
 
+/**
+ * Optional: after a successful tool call, move the OrangeHRM tab to the screen
+ * that reflects the change. Off by default because a full-page navigation resets
+ * the app; enable per browser with `localStorage.WEBMCP_NAVIGATE = 'true'`.
+ */
 const TOOL_NAVIGATION_ROUTES: Record<string, string> = {
-  search_employees: '/pim/viewEmployeeList',
-  get_employee_profile: '/pim/viewEmployeeList',
   create_employee: '/pim/viewEmployeeList',
-  list_leave_types: '/leave/viewLeaveList',
-  get_leave_balance: '/leave/viewLeaveList',
-  apply_leave: '/leave/applyLeave',
+  apply_leave: '/leave/viewMyLeaveList',
   approve_leave_request: '/leave/viewLeaveList',
-  list_projects: '/time/viewProjectInfo',
-  list_project_activities: '/time/viewProjectInfo',
   submit_timesheet: '/time/viewEmployeeTimesheet',
-  list_vacancies: '/recruitment/viewJobVacancy',
-  list_candidates: '/recruitment/viewCandidates',
   shortlist_candidate: '/recruitment/viewCandidates',
-  list_system_users: '/admin/viewSystemUsers',
-  list_job_titles: '/admin/viewJobTitleList',
-  list_job_categories: '/admin/jobCategory',
-  list_employment_statuses: '/admin/employmentStatus',
-  list_locations: '/admin/viewLocations',
-  list_nationalities: '/admin/nationality',
-  list_subunits: '/admin/viewCompanyStructure',
-  list_pay_grades: '/admin/viewPayGrades',
-  list_work_shifts: '/admin/workShift',
-  get_organization_info: '/admin/viewOrganizationGeneralInformation',
-  list_education_qualifications: '/admin/viewEducation',
-  list_skill_qualifications: '/admin/viewSkills',
-  list_license_qualifications: '/admin/viewLicenses',
-  list_language_qualifications: '/admin/viewLanguages',
-  list_membership_qualifications: '/admin/membership',
   create_job_title: '/admin/viewJobTitleList',
   create_job_category: '/admin/jobCategory',
   create_employment_status: '/admin/employmentStatus',
@@ -53,48 +36,34 @@ const TOOL_NAVIGATION_ROUTES: Record<string, string> = {
   create_system_user: '/admin/viewSystemUsers',
 };
 
+const isNavigationEnabled = (): boolean => {
+  try {
+    return localStorage.getItem('WEBMCP_NAVIGATE') === 'true';
+  } catch {
+    return false;
+  }
+};
+
 const getBaseUrl = (): string => {
   if (typeof window === 'undefined') {
     return '';
   }
-
-  const globalWindow = window as Window & {
-    appGlobal?: {
-      baseUrl?: string;
-    };
-  };
-
+  const globalWindow = window as Window & {appGlobal?: {baseUrl?: string}};
   return globalWindow.appGlobal?.baseUrl || '';
 };
 
-const getNavigationTarget = (toolName: string): string | undefined => {
+const navigateForTool = (toolName: string): string | undefined => {
+  if (typeof window === 'undefined' || !isNavigationEnabled()) {
+    return undefined;
+  }
   const route = TOOL_NAVIGATION_ROUTES[toolName];
   if (!route) {
     return undefined;
   }
-
-  const baseUrl = getBaseUrl();
-  if (!baseUrl) {
-    return route;
-  }
-
-  return `${baseUrl}${route}`;
-};
-
-const navigateForTool = (toolName: string): string | undefined => {
-  if (typeof window === 'undefined') {
-    return undefined;
-  }
-
-  const target = getNavigationTarget(toolName);
-  if (!target) {
-    return undefined;
-  }
-
+  const target = `${getBaseUrl()}${route}`;
   if (window.location.href.startsWith(target)) {
     return undefined;
   }
-
   window.location.assign(target);
   return target;
 };
@@ -103,7 +72,6 @@ const emitToolUiEvent = (detail: ToolUiEventDetail): void => {
   if (typeof window === 'undefined') {
     return;
   }
-
   window.dispatchEvent(new CustomEvent('webmcp:tool-result', {detail}));
 };
 
@@ -121,97 +89,66 @@ const getModelContext = (): ModelContext | null => {
   return navigatorWithModelContext.modelContext || null;
 };
 
-export const registerTools = (tools: ModelContextToolDefinition[]): number => {
-  const modelContext = getModelContext();
-  if (!modelContext) {
-    return 0;
-  }
+const wrapExecutor = (tool: ModelContextToolDefinition): ToolExecutor => {
+  return async (args: Record<string, unknown>, agent?: ModelContextAgent) => {
+    const startedAt = new Date();
 
-  tools.forEach((tool) => {
-    const wrappedExecute: ToolExecutor = async (
-      args: Record<string, unknown>,
-      agent?: ModelContextAgent,
-    ) => {
-      const startedAt = new Date();
-      const validationError = validateRequiredInputs(
-        args,
-        tool.inputSchema ?? {},
-      );
-      if (validationError) {
-        emitToolUiEvent({
-          toolName: tool.name,
-          success: false,
-          message: validationError.message,
-          errorCode: validationError.errorCode,
-        });
-        appendToolAuditLog({
-          toolName: tool.name,
-          startedAt: startedAt.toISOString(),
-          finishedAt: new Date().toISOString(),
-          durationMs: 0,
-          success: false,
-          errorCode: validationError.errorCode,
-          input: args,
-        });
-        return validationError;
-      }
-
-      try {
-        const result = (await tool.execute(args, agent)) as ToolResult;
-        const navigatedTo = result?.success
-          ? navigateForTool(tool.name)
-          : undefined;
-        emitToolUiEvent({
-          toolName: tool.name,
-          success: result?.success ?? true,
-          message: result?.message || 'Tool executed',
-          errorCode: result?.errorCode,
-          navigatedTo,
-        });
-        const finishedAt = new Date();
-        appendToolAuditLog({
-          toolName: tool.name,
-          startedAt: startedAt.toISOString(),
-          finishedAt: finishedAt.toISOString(),
-          durationMs: finishedAt.getTime() - startedAt.getTime(),
-          success: result?.success ?? true,
-          errorCode: result?.errorCode,
-          input: args,
-        });
-        return result;
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : 'Unexpected tool error';
-        const failedResult = fail(
-          message,
-          'WEBMCP_EXECUTION_ERROR',
-        ) as ToolResult;
-        emitToolUiEvent({
-          toolName: tool.name,
-          success: false,
-          message: failedResult.message,
-          errorCode: failedResult.errorCode,
-        });
-        const finishedAt = new Date();
-        appendToolAuditLog({
-          toolName: tool.name,
-          startedAt: startedAt.toISOString(),
-          finishedAt: finishedAt.toISOString(),
-          durationMs: finishedAt.getTime() - startedAt.getTime(),
-          success: false,
-          errorCode: failedResult.errorCode,
-          input: args,
-        });
-        return failedResult;
-      }
+    const finish = (result: ToolResult): ToolResult => {
+      const navigatedTo = result.success
+        ? navigateForTool(tool.name)
+        : undefined;
+      emitToolUiEvent({
+        toolName: tool.name,
+        success: result.success,
+        message: result.message,
+        errorCode: result.errorCode,
+        navigatedTo,
+      });
+      const finishedAt = new Date();
+      appendToolAuditLog({
+        toolName: tool.name,
+        startedAt: startedAt.toISOString(),
+        finishedAt: finishedAt.toISOString(),
+        durationMs: finishedAt.getTime() - startedAt.getTime(),
+        success: result.success,
+        errorCode: result.errorCode,
+        input: args,
+      });
+      return result;
     };
 
-    toolExecutors.set(tool.name, wrappedExecute);
+    const validationError = validateInputs(args, tool.inputSchema ?? {});
+    if (validationError) {
+      return finish(validationError);
+    }
 
-    modelContext.registerTool({
-      ...tool,
-      execute: wrappedExecute,
-    });
+    try {
+      const result = (await tool.execute(args, agent)) as ToolResult;
+      return finish(result ?? {success: true, message: 'Tool executed'});
+    } catch (error) {
+      if (error instanceof WebMcpApiError) {
+        return finish(fail(error.message, error.errorCode) as ToolResult);
+      }
+      const message =
+        error instanceof Error ? error.message : 'Unexpected tool error';
+      return finish(fail(message, 'WEBMCP_EXECUTION_ERROR') as ToolResult);
+    }
+  };
+};
+
+/**
+ * Register tool definitions. The internal executor map is always populated (so
+ * `window.webmcp.executeTool` works for manual testing); when a
+ * `navigator.modelContext` provider is present, tools are also registered with
+ * it for external agents.
+ */
+export const registerTools = (tools: ModelContextToolDefinition[]): number => {
+  const modelContext = getModelContext();
+
+  tools.forEach((tool) => {
+    const wrappedExecute = wrapExecutor(tool);
+    toolExecutors.set(tool.name, wrappedExecute);
+    modelContext?.registerTool({...tool, execute: wrappedExecute});
   });
 
   return tools.length;
@@ -229,10 +166,14 @@ export const executeRegisteredTool = async (
       'WEBMCP_TOOL_NOT_FOUND',
     );
   }
-
   return executor(args, agent);
 };
 
 export const getRegisteredToolNames = (): string[] => {
   return Array.from(toolExecutors.keys());
+};
+
+/** Test helper — clears registered executors. */
+export const resetToolRegistry = (): void => {
+  toolExecutors.clear();
 };

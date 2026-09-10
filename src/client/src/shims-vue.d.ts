@@ -25,11 +25,11 @@ declare module '*.vue' {
 interface Window {
   appGlobal: {
     baseUrl: string;
-    webmcpRole?: string;
-    userRole?: string;
+    publicPath?: string;
   };
   webmcp?: {
     tools: () => string[];
+    modules: () => string[];
     executeTool: (
       toolName: string,
       args?: Record<string, unknown>,
