@@ -1,0 +1,12 @@
+.git
+.github
+remotemcp/node_modules
+remotemcp/dist
+src/vendor
+src/node_modules
+src/client/node_modules
+installer/client/node_modules
+web/dist
+**/.DS_Store
+*.md
+CHANGELOG.TXT

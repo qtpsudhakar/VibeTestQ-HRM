@@ -69,4 +69,13 @@ RUN { \
 		a2enmod rewrite; \
 	fi;
 
+# Overlay repo customisations on top of the stock 5.8.1 release.
+# The release above is version-matched to this repo (src/lib/config/Config.php),
+# so replacing individual asset files is safe. Add more COPY lines here for any
+# other files you change in the repo (templates, config, etc.).
+COPY --chown=www-data:www-data logo.png /var/www/html/logo.png
+COPY --chown=www-data:www-data web/images/ /var/www/html/web/images/
+
+EXPOSE 80
+
 VOLUME ["/var/www/html"]
