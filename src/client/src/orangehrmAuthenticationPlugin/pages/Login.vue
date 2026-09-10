@@ -92,19 +92,28 @@
     <div class="orangehrm-login-footer">
       <div v-if="showSocialMedia" class="orangehrm-login-footer-sm">
         <a
-          href="https://www.linkedin.com/company/orangehrm/mycompany/"
+          href="https://vibetestq.com"
           target="_blank"
+          rel="noopener noreferrer"
+          title="VibeTestQ"
+        >
+          <oxd-icon class="orangehrm-sm-icon" name="globe" />
+        </a>
+        <a
+          href="https://www.linkedin.com/in/qtpsudhakar/"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="LinkedIn"
         >
           <oxd-icon type="svg" class="orangehrm-sm-icon" name="linkedinFill" />
         </a>
-        <a href="https://www.facebook.com/OrangeHRM/" target="_blank">
-          <oxd-icon type="svg" class="orangehrm-sm-icon" name="facebookFill" />
-        </a>
-        <a href="https://twitter.com/orangehrm?lang=en" target="_blank">
-          <oxd-icon type="svg" class="orangehrm-sm-icon" name="twitterFill" />
-        </a>
-        <a href="https://www.youtube.com/c/OrangeHRMInc" target="_blank">
-          <oxd-icon type="svg" class="orangehrm-sm-icon" name="youtubeFill" />
+        <a
+          href="https://www.npmjs.com/package/tamash-playwright"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="tamash-playwright on npm"
+        >
+          <oxd-icon class="orangehrm-sm-icon" name="box-seam" />
         </a>
       </div>
       <slot name="footer"></slot>

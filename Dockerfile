@@ -1,12 +1,33 @@
-# Deployment image (used by Railway and .github/workflows/docker_build.yml): the stock OrangeHRM image (keeps its entrypoint, ORANGEHRM_*
-# DB auto-config and /orangehrm volume handling) with this repo's asset
-# customisations layered on top.
+# Deployment image (used by Railway and .github/workflows/docker_build.yml).
 #
-# Pinned to 5.9, which is what "latest" resolves to and what this Railway
-# service is currently running - so this is not a version change, only an
-# asset overlay. If you bump this tag, re-check that the paths below still
-# exist in the new image.
+# Stage 1 compiles the OrangeHRM 5.9 frontend with this repo's login-page
+# customisation applied. Stage 2 is the stock orangehrm/orangehrm:5.9 image
+# (keeps its entrypoint, ORANGEHRM_* DB auto-config and volume handling) with
+# the freshly built frontend and this repo's branding images layered on top.
+#
+# Pinned to 5.9 = what this Railway service already runs, so this is not a
+# version change. If you bump the tag, bump OHRM_TAG to match.
+
+# ---- Stage 1: build the customised frontend --------------------------------
+FROM node:20-bookworm AS client
+ARG OHRM_TAG=5.9
+RUN git clone --depth 1 --branch "${OHRM_TAG}" https://github.com/orangehrm/orangehrm.git /ohrm
+WORKDIR /ohrm/src/client
+
+# Our customisation: login footer links (VibeTestQ / LinkedIn / npm package).
+# Login.vue and login.scss are byte-identical between upstream 5.8.1 and 5.9,
+# so applying this repo's copies onto the 5.9 tree is safe.
+COPY src/client/src/orangehrmAuthenticationPlugin/pages/Login.vue  src/orangehrmAuthenticationPlugin/pages/Login.vue
+COPY src/client/src/orangehrmAuthenticationPlugin/pages/login.scss src/orangehrmAuthenticationPlugin/pages/login.scss
+
+ENV NODE_OPTIONS=--max-old-space-size=4096
+RUN node .yarn/releases/yarn-4.1.0.cjs install --immutable \
+ && node .yarn/releases/yarn-4.1.0.cjs build
+# build output -> /ohrm/web/dist
+
+# ---- Stage 2: runtime -----------------------------------------------------
 FROM orangehrm/orangehrm:5.9
 
+COPY --from=client --chown=www-data:www-data /ohrm/web/dist/ /var/www/html/web/dist/
 COPY --chown=www-data:www-data web/images/ /var/www/html/web/images/
-COPY --chown=www-data:www-data logo.png   /var/www/html/logo.png
+COPY --chown=www-data:www-data logo.png    /var/www/html/logo.png
