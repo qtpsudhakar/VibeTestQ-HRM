@@ -18,15 +18,15 @@ refreshes, the browser navigates — exactly the manual flow. The `webMcpMixin`
 
 Current page tools:
 
-| Screen | Tools |
-|---|---|
-| Employee list | `search_employees`, `delete_employee` |
-| Add Employee | `create_employee` |
-| Personal Details | `update_personal_details` |
-| Contact Details | `update_contact_details` |
-| System Users list | `search_users`, `delete_user` |
-| Add User | `create_user` |
-| Edit User | `update_user`, `change_user_password` |
+| Screen            | Tools                                 |
+| ----------------- | ------------------------------------- |
+| Employee list     | `search_employees`, `delete_employee` |
+| Add Employee      | `create_employee`                     |
+| Personal Details  | `update_personal_details`             |
+| Contact Details   | `update_contact_details`              |
+| System Users list | `search_users`, `delete_user`         |
+| Add User          | `create_user`                         |
+| Edit User         | `update_user`, `change_user_password` |
 
 **Global tools** — registered once from `registerWebMcp.ts`, filtered by the
 user's menu:
@@ -40,10 +40,10 @@ user's menu:
 
 ## Flow
 
-An agent on the dashboard: `open_add_employee` → the Add Employee page loads and a
-`toolchange` fires → `create_employee({firstName:'Ada', lastName:'Lovelace'})` →
-the form fields populate, it saves, the tab lands on Ada's Personal Details page →
-`update_personal_details` is now available.
+An agent on the dashboard: `open_add_employee` → the Add Employee page loads, its
+`create_employee` tool registers → `create_employee({firstName:'Ada',
+lastName:'Lovelace'})` → the form fields populate, it saves, the tab lands on
+Ada's Personal Details page → `update_personal_details` is now available.
 
 ## Behaviour
 
@@ -53,16 +53,19 @@ the form fields populate, it saves, the tab lands on Ada's Personal Details page
 - No toast: a write navigates, and the result screen is the confirmation.
 - The API enforces real permissions; a disallowed call returns `WEBMCP_FORBIDDEN`.
 
-## Enabling
+## Availability
 
-Built with `VUE_APP_WEBMCP=true` (Dockerfile). Per browser:
-`localStorage.setItem('WEBMCP_ENABLED', 'true' | 'false')`.
+No app-level switch. Tools register only when the browser provides a
+`modelContext` (`document.modelContext`, or the deprecated
+`navigator.modelContext`) — Chrome behind `chrome://flags/#webmcp-for-testing`,
+later an origin trial. With no support, nothing runs.
 
-## Debug API
+## Debug helper
 
-`window.webmcp`: `tools()`, `modules()`, `executeTool(name, args)`,
-`auditLogs()`, `clearAuditLogs()`. If the browser has no WebMCP provider a local
-`navigator.modelContext` is installed so these still work.
+`window.webmcp` is attached for inspection: `tools()`, `modules()`,
+`executeTool(name, args)`, `auditLogs()`, `clearAuditLogs()`. `executeTool` runs
+a tool from the internal map without going through the provider — for local
+checks only.
 
 ## Tests
 

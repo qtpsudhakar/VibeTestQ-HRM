@@ -2,11 +2,12 @@
  * Page-scoped WebMCP tool registration for OrangeHRM's Options-API components.
  *
  * A page component declares a `webMcpTools()` option returning tool definitions
- * whose `execute` closes over `this` — so a tool can set the component's reactive
- * model and call the same method a button calls, and the visible UI updates.
+ * whose `execute` closes over `this` — so a tool sets the component's reactive
+ * model and calls the same method a button calls, and the visible UI updates.
  * The global `webMcpMixin` (installed in main.ts) registers them on `mounted`
  * and removes them on `beforeUnmount`, so the available tool set follows the
- * screen the user is on.
+ * screen the user is on. Nothing happens unless the browser provides a WebMCP
+ * `modelContext`.
  *
  *   export default {
  *     webMcpTools() {
@@ -24,8 +25,7 @@
  *   }
  */
 import {ComponentOptions} from 'vue';
-import {isWebMcpEnabled} from './core/toolGuards';
-import {resolveModelContext} from './core/modelContextPolyfill';
+import {hasModelContext} from './core/provider';
 import {registerTools} from './core/toolRegistry';
 import {ModelContextToolDefinition} from './core/modelContext.types';
 
@@ -40,7 +40,7 @@ export const webMcpMixin: ComponentOptions = {
   mounted(this: unknown) {
     const vm = this as WithWebMcp;
     const factory = vm.$options.webMcpTools;
-    if (typeof factory !== 'function' || !isWebMcpEnabled()) {
+    if (typeof factory !== 'function' || !hasModelContext()) {
       return;
     }
 
@@ -55,7 +55,6 @@ export const webMcpMixin: ComponentOptions = {
       return;
     }
 
-    resolveModelContext();
     const controller = new AbortController();
     vm.__webMcpController = controller;
     registerTools(tools, {signal: controller.signal});

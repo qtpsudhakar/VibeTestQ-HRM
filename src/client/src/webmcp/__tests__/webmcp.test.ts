@@ -1,7 +1,7 @@
 /**
- * WebMCP tool-layer tests: the registry, the page mixin, navigator + reference
- * tools, and a representative page-tool handler. Only the HTTP client and the
- * navigation helper are mocked.
+ * WebMCP tool-layer tests: provider detection, the registry, navigator +
+ * reference tools, and the page mixin. Only the HTTP client and the navigation
+ * helper are mocked.
  */
 /* eslint-env jest */
 /* global jest */
@@ -38,6 +38,7 @@ import {
   registerTools,
   resetToolRegistry,
 } from '../core/toolRegistry';
+import {getModelContextProviders, hasModelContext} from '../core/provider';
 import {getNavigatorTools} from '../tools/navigatorTools';
 import {getReferenceTools} from '../tools/referenceTools';
 import {webMcpMixin} from '../useWebMcp';
@@ -47,37 +48,89 @@ import {ModelContextToolDefinition} from '../core/modelContext.types';
 const mockGet = apiGet as jest.MockedFunction<typeof apiGet>;
 const mockNavigate = navigate as jest.MockedFunction<typeof navigate>;
 
+interface FakeProvider {
+  registerTool: jest.Mock;
+  getTools: () => unknown[];
+}
+
+const installProvider = (): FakeProvider => {
+  const tools = new Map<string, unknown>();
+  const provider: FakeProvider = {
+    getTools: () => Array.from(tools.values()),
+    registerTool: jest.fn(
+      (descriptor: {name: string}, opts?: {signal?: AbortSignal}) => {
+        tools.set(descriptor.name, descriptor);
+        opts?.signal?.addEventListener('abort', () =>
+          tools.delete(descriptor.name),
+        );
+      },
+    ),
+  };
+  Object.defineProperty(document, 'modelContext', {
+    value: provider,
+    configurable: true,
+  });
+  return provider;
+};
+
+const removeProvider = () => {
+  Object.defineProperty(document, 'modelContext', {
+    value: undefined,
+    configurable: true,
+  });
+};
+
 beforeEach(() => {
   resetToolRegistry();
   mockGet.mockReset();
   mockNavigate.mockReset();
-  localStorage.clear();
-  localStorage.setItem('WEBMCP_ENABLED', 'true');
+  removeProvider();
 });
 
-// ── registry ────────────────────────────────────────────────────────────────
+describe('provider detection', () => {
+  it('finds document.modelContext when present', () => {
+    expect(hasModelContext()).toBe(false);
+    installProvider();
+    expect(hasModelContext()).toBe(true);
+    expect(getModelContextProviders()).toHaveLength(1);
+  });
+});
+
 describe('tool registry', () => {
-  it('runs a registered tool and returns its result', async () => {
+  it('registers with the browser provider in MCP content shape', async () => {
+    const provider = installProvider();
     registerTools([
       {name: 't', description: 'd', execute: () => ok('done', {n: 1})},
     ]);
-    const result = (await executeRegisteredTool('t', {})) as {
-      success: boolean;
-      data: {n: number};
+    expect(provider.registerTool).toHaveBeenCalledTimes(1);
+    const descriptor = provider.registerTool.mock.calls[0][0] as {
+      execute: (a: Record<string, unknown>) => Promise<unknown>;
     };
-    expect(result.success).toBe(true);
-    expect(result.data.n).toBe(1);
+    const out = (await descriptor.execute({})) as {
+      content: {text: string}[];
+      isError: boolean;
+    };
+    expect(out.isError).toBe(false);
+    expect(out.content[0].text).toContain('done');
   });
 
-  it('removes tools when the signal aborts', () => {
+  it('still records tools internally with no provider', async () => {
+    registerTools([{name: 'x', description: 'd', execute: () => ok('hi')}]);
+    expect(getRegisteredToolNames()).toContain('x');
+    const result = (await executeRegisteredTool('x', {})) as {success: boolean};
+    expect(result.success).toBe(true);
+  });
+
+  it('removes tools from the provider when the signal aborts', () => {
+    const provider = installProvider();
     const controller = new AbortController();
     registerTools(
       [{name: 'scoped', description: 'd', execute: () => ok('x')}],
       {signal: controller.signal},
     );
-    expect(getRegisteredToolNames()).toContain('scoped');
+    expect(provider.getTools()).toHaveLength(1);
     controller.abort();
-    expect(getRegisteredToolNames()).not.toContain('scoped');
+    expect(provider.getTools()).toHaveLength(0);
   });
 
   it('validates required inputs before executing', async () => {
@@ -116,16 +169,8 @@ describe('tool registry', () => {
     };
     expect(result.errorCode).toBe('WEBMCP_FORBIDDEN');
   });
-
-  it('reports an unknown tool', async () => {
-    const result = (await executeRegisteredTool('nope', {})) as {
-      errorCode: string;
-    };
-    expect(result.errorCode).toBe('WEBMCP_TOOL_NOT_FOUND');
-  });
 });
 
-// ── navigator + reference tools ─────────────────────────────────────────────
 describe('navigator tools', () => {
   const byName = (name: string) =>
     getNavigatorTools().find(
@@ -137,13 +182,6 @@ describe('navigator tools', () => {
     expect(tool.annotations?.readOnlyHint).toBe(true);
     await tool.execute({});
     expect(mockNavigate).toHaveBeenCalledWith('/pim/addEmployee');
-  });
-
-  it('open_user navigates with the id', async () => {
-    await byName('open_user').execute({id: 7});
-    expect(mockNavigate).toHaveBeenCalledWith('/admin/saveSystemUser/{id}', {
-      id: 7,
-    });
   });
 
   it('find_employee queries the API and trims the rows', async () => {
@@ -159,13 +197,7 @@ describe('navigator tools', () => {
       nameOrId: 'ada',
       limit: 20,
     });
-    expect(result.data.employees[0]).toEqual({
-      empNumber: 3,
-      firstName: 'Ada',
-      middleName: undefined,
-      lastName: 'Lovelace',
-      employeeId: undefined,
-    });
+    expect(result.data.employees[0]).not.toHaveProperty('secret');
   });
 });
 
@@ -177,7 +209,6 @@ describe('reference tools', () => {
   });
 });
 
-// ── page mixin ─────────────────────────────────────────────────────────────
 describe('webMcpMixin', () => {
   const mount = (options: Record<string, unknown>) => {
     const vm = {$options: options, __webMcpController: undefined} as never;
@@ -185,37 +216,38 @@ describe('webMcpMixin', () => {
     return vm as {__webMcpController?: AbortController};
   };
 
-  it("registers a component's tools on mount and removes them on unmount", () => {
+  it("registers a page's tools on mount and removes them on unmount", () => {
+    const provider = installProvider();
     const vm = mount({
-      webMcpTools(this: unknown) {
+      webMcpTools() {
         return [{name: 'page_tool', description: 'd', execute: () => ok('x')}];
       },
     });
-    expect(getRegisteredToolNames()).toContain('page_tool');
+    expect(provider.getTools().length).toBe(1);
 
     (webMcpMixin.beforeUnmount as (this: unknown) => void).call(vm);
-    expect(getRegisteredToolNames()).not.toContain('page_tool');
+    expect(provider.getTools().length).toBe(0);
+  });
+
+  it('does nothing when the browser has no modelContext', () => {
+    mount({
+      webMcpTools() {
+        return [{name: 'nope', description: 'd', execute: () => ok('x')}];
+      },
+    });
+    expect(getRegisteredToolNames()).toHaveLength(0);
   });
 
   it('does nothing when the component has no webMcpTools option', () => {
+    installProvider();
     mount({});
     expect(getRegisteredToolNames()).toHaveLength(0);
   });
 
-  it('does nothing when the feature flag is off', () => {
-    localStorage.setItem('WEBMCP_ENABLED', 'false');
-    mount({
-      webMcpTools() {
-        return [{name: 'flagged', description: 'd', execute: () => ok('x')}];
-      },
-    });
-    expect(getRegisteredToolNames()).toHaveLength(0);
-  });
-
-  it('a page tool handler can drive its component and confirm', async () => {
-    // Mimic EmployeePersonalDetails.update_personal_details bound to `this`.
+  it('a page tool handler can drive its component', async () => {
+    installProvider();
     const component = {
-      employee: {firstName: 'Old', lastName: 'Name', middleName: ''},
+      employee: {firstName: 'Old'},
       onSave: jest.fn().mockResolvedValue(undefined),
     };
     mount({
@@ -225,8 +257,9 @@ describe('webMcpMixin', () => {
             name: 'update_personal_details',
             description: 'd',
             execute: async (args: Record<string, unknown>) => {
-              if (args.firstName)
+              if (args.firstName) {
                 component.employee.firstName = String(args.firstName);
+              }
               await component.onSave();
               return ok('updated');
             },

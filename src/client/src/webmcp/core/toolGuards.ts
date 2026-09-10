@@ -2,26 +2,6 @@ import {ModelContextAgent} from './modelContext.types';
 import {fail, ok} from './toolResponse';
 
 /**
- * WebMCP is opt-in. It is enabled when the build sets `VUE_APP_WEBMCP=true`,
- * and can be forced on/off per browser with `localStorage.WEBMCP_ENABLED`.
- */
-export const isWebMcpEnabled = (): boolean => {
-  let stored: string | null = null;
-  try {
-    stored = localStorage.getItem('WEBMCP_ENABLED');
-  } catch {
-    stored = null;
-  }
-  if (stored === 'true') {
-    return true;
-  }
-  if (stored === 'false') {
-    return false;
-  }
-  return process.env.VUE_APP_WEBMCP === 'true';
-};
-
-/**
  * Ask the human to approve a mutating action.
  *
  * Preference order:

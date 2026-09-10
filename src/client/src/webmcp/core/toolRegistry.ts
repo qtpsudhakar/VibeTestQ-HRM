@@ -7,7 +7,7 @@ import {fail} from './toolResponse';
 import {validateInputs} from './toolSchemas';
 import {appendToolAuditLog} from './auditLogger';
 import {WebMcpApiError} from './apiClient';
-import {resolveModelContexts} from './modelContextPolyfill';
+import {getModelContextProviders} from './provider';
 
 type ToolExecutor = (
   args: Record<string, unknown>,
@@ -15,12 +15,8 @@ type ToolExecutor = (
 ) => Promise<ToolResult>;
 
 const toolExecutors = new Map<string, ToolExecutor>();
-const registeredWithProvider = new Set<string>();
 
-/**
- * Wrap a ToolResult into the MCP content shape a WebMCP provider / agent
- * expects. The internal `executeRegisteredTool` path keeps the raw ToolResult.
- */
+/** Wrap a ToolResult into the MCP content shape the agent expects. */
 const toMcpResult = (result: ToolResult) => {
   const text =
     result.data === undefined
@@ -71,26 +67,24 @@ const wrapExecutor = (tool: ModelContextToolDefinition): ToolExecutor => {
 };
 
 /**
- * Register tool definitions. The internal executor map is always populated (so
- * `window.webmcp.executeTool` works for manual testing); when a
- * `navigator.modelContext` provider is present, tools are also registered with
- * it for external agents.
+ * Register tool definitions with the browser's `modelContext` provider(s).
+ * No-op for provider registration when the browser has no WebMCP support; the
+ * internal executor map is still populated so `window.webmcp.executeTool` works
+ * for local inspection.
  *
- * Pass `{ signal }` for page-scoped tools: aborting it removes them from both
- * the executor map and the provider.
+ * Pass `{ signal }` for page-scoped tools — aborting it removes them.
  */
 export const registerTools = (
   tools: ModelContextToolDefinition[],
   options: {signal?: AbortSignal} = {},
 ): number => {
-  const providers = resolveModelContexts();
+  const providers = getModelContextProviders();
 
   tools.forEach((tool) => {
     const wrappedExecute = wrapExecutor(tool);
     toolExecutors.set(tool.name, wrappedExecute);
     options.signal?.addEventListener('abort', () => {
       toolExecutors.delete(tool.name);
-      registeredWithProvider.delete(tool.name);
     });
 
     const descriptor = {
@@ -113,46 +107,13 @@ export const registerTools = (
         ) {
           (maybePromise as Promise<unknown>).catch(() => undefined);
         }
-        registeredWithProvider.add(tool.name);
       } catch {
-        // provider rejected the descriptor — the internal map still has it
+        // provider rejected the descriptor — nothing else to do
       }
     });
   });
 
   return tools.length;
-};
-
-type MaybeProvider =
-  | {isWebMcpPolyfill?: boolean; getTools?: () => unknown[]}
-  | undefined;
-
-const providerAt = (host: 'document' | 'navigator'): MaybeProvider => {
-  const scope =
-    host === 'document' ? globalThis.document : globalThis.navigator;
-  return (scope as unknown as {modelContext?: MaybeProvider})?.modelContext;
-};
-
-/** Diagnostics for `window.webmcp.provider()`. */
-export const getProviderInfo = () => {
-  const describe = (p: MaybeProvider) => {
-    if (!p) {
-      return null;
-    }
-    let toolCount: number | undefined;
-    try {
-      toolCount =
-        typeof p.getTools === 'function' ? p.getTools().length : undefined;
-    } catch {
-      toolCount = undefined;
-    }
-    return {polyfill: Boolean(p.isWebMcpPolyfill), toolCount};
-  };
-  return {
-    documentModelContext: describe(providerAt('document')),
-    navigatorModelContext: describe(providerAt('navigator')),
-    registeredWithProvider: Array.from(registeredWithProvider),
-  };
 };
 
 export const executeRegisteredTool = async (
@@ -177,5 +138,4 @@ export const getRegisteredToolNames = (): string[] => {
 /** Test helper — clears registered executors. */
 export const resetToolRegistry = (): void => {
   toolExecutors.clear();
-  registeredWithProvider.clear();
 };

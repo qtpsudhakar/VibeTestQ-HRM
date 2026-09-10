@@ -45,10 +45,6 @@ COPY src/client/src/orangehrmAdminPlugin/pages/systemUser/SystemUser.vue        
 COPY src/client/src/orangehrmAdminPlugin/pages/systemUser/SaveSystemUser.vue        src/orangehrmAdminPlugin/pages/systemUser/SaveSystemUser.vue
 COPY src/client/src/orangehrmAdminPlugin/pages/systemUser/EditSystemUser.vue        src/orangehrmAdminPlugin/pages/systemUser/EditSystemUser.vue
 
-# Enable WebMCP for this build. Can still be toggled per browser with
-# localStorage.WEBMCP_ENABLED.
-ENV VUE_APP_WEBMCP=true
-
 ENV NODE_OPTIONS=--max-old-space-size=4096
 RUN node .yarn/releases/yarn-4.1.0.cjs install --immutable \
  && node .yarn/releases/yarn-4.1.0.cjs build
